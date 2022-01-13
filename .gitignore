@@ -1,5 +1,7 @@
 *
-*/
 
-!CNN.py
-!ChaplinCNN.py
+!pyEnv/CNN.py
+!pyEnv/ChaplinCNN.py
+!.gitignore
+
+!*/
