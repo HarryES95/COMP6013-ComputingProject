@@ -6,9 +6,8 @@ import numpy as np
 from scenedetect import VideoManager
 from scenedetect import SceneManager
 
-def loadVideo():
-
-    numpy_video = svio.FFmpegReader("Dataset\\Charlie Chaplin_ Easy Street.mp4")
+def loadVideo(videoFilePath):
+    numpy_video = svio.FFmpegReader(videoFilePath)
     # writer = svio.FFmpegWriter("afterLoading.mp4",outputdict={'-crf':'0','-pix_fmt':'yuv420p'})
     # for frame in numpy_video:
     #     writer.writeFrame(frame*255)
@@ -28,28 +27,32 @@ def formatData(dataset_numpy):
     dataset = np.delete(temp,0,axis=0)
     return dataset, labels
 
-def formatAndSaveNumpyData(numpy_video,scene_list=None):
+def formatAndSaveNumpyData(numpy_video,scene_list):
     samplesFile = open("E:\\Dataset\\samples.npy","ba+") #Open file in binary append mode
     labelsFile = open("E:\\Dataset\\labels.npy","ba+") #Open file in binary append mode
     data = (x for x in numpy_video.nextFrame()) #Use generator so entire file is not loaded into memory
-    one = next(data, None)
-    two = next(data, None)
-    three = next(data, None)
-    while three is not None:
-        np.save(labelsFile,two)
-        np.save(samplesFile,np.reshape(np.stack((one,three),axis=-1),(one.shape[0],one.shape[1],one.shape[2]*2)))
-        one = three
+    for scene in scene_list:
+        count = scene[0].frame_num   
+        limit = scene[1].frame_num
+        one = next(data, None)
         two = next(data, None)
         three = next(data, None)
+        while not count >= limit and three is not None: 
+            np.save(labelsFile,two)
+            np.save(samplesFile,np.reshape(np.stack((one,three),axis=-1),(one.shape[0],one.shape[1],one.shape[2]*2)))
+            one = three
+            two = next(data, None)
+            three = next(data, None)
+            count += 2
     samplesFile.close()
     labelsFile.close()
     return
 
-def split_scenes(numpy_video):
-    video_manager = VideoManager(["Dataset\\Charlie Chaplin_ Easy Street.mp4"])
+def split_scenes(numpy_video,videoFilePath):
+    video_manager = VideoManager([videoFilePath])
     scene_manager = SceneManager()
     scene_manager.add_detector(
-        ContentDetector(threshold=15.0)
+        ContentDetector(threshold=10.0)
     )
     video_manager.set_downscale_factor()
     video_manager.start()
@@ -66,22 +69,21 @@ def buildDataset():
     dataset = tf.data.Dataset.from_generator(generator,output_signature=(tf.TensorSpec(shape=(360, 504, 6), dtype=tf.uint8, name=None),tf.TensorSpec(shape=(360, 504, 3), dtype=tf.uint8, name=None)))
     return dataset
 
-
-numpy_video = loadVideo()
-# scene_list = split_scenes(numpy_video) #Split video so that 'cuts' don't interfere with formatting dataset
-# for scene in scene_list:
-#     count = scene[0].frame_num   
-#     limit = scene[1].frame_num
-#     writer = svio.FFmpegWriter("Scenes\\scene{0}.mp4".format(count))
-#     while count != limit:        
-#         for frame in numpy_video.nextFrame():
-#             writer.writeFrame(frame)
-#             count += 1
-#             break
-#     writer.close()
-formatAndSaveNumpyData(numpy_video)
+videoFilePath = "Dataset\\Charlie Chaplin_ Easy Street.mp4"
+numpy_video = loadVideo(videoFilePath)
+scene_list = split_scenes(numpy_video,videoFilePath) #Split video so that 'cuts' don't interfere with formatting dataset
+#formatAndSaveNumpyData(numpy_video, scene_list)
 dataset = buildDataset()
-        
+for scene in scene_list:
+    count = scene[0].frame_num   
+    limit = scene[1].frame_num
+    writer = svio.FFmpegWriter("E:\\Scenes\\scene{0}.mp4".format(count))
+    while count != limit:        
+        for frame in numpy_video.nextFrame():
+            writer.writeFrame(frame)
+            count += 1
+            break
+    writer.close()        
 
 inputs = layers.Input(shape=(360,504,6))
 conv2d = layers.Conv2D(64, (3,3), activation='relu', padding='same')(inputs)
