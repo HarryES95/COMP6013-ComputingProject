@@ -1,5 +1,5 @@
 import tensorflow as tf
-from tensorflow.keras import layers, models
+from tensorflow.keras import layers, models, optimizers
 import numpy as np
 import matplotlib.pyplot as plt
 import skvideo.io as svio
@@ -98,31 +98,37 @@ print(len(test_labels))
 # model.add(layers.Conv2D(1, (1, 1), activation='relu', padding='same', data_format="channels_last"))
 
 inputs = layers.Input(shape=(64,64,2))
-conv2d = layers.Conv2D(32, (3,3), activation='relu', padding='same')(inputs)
-conv2d_1 = layers.Conv2D(32, (3,3), activation='relu', padding='same')(conv2d)
+conv2d = layers.Conv2D(64, (3,3), activation='relu', padding='same')(inputs)
+conv2d_1 = layers.Conv2D(64, (3,3), activation='relu', padding='same')(conv2d)
 max_pooling2d = layers.AveragePooling2D(pool_size=(2, 2))(conv2d_1)
-conv2d_2 = layers.Conv2D(64, (3, 3), activation='relu', padding='same')(max_pooling2d)
-conv2d_3 = layers.Conv2D(64, (3, 3), activation='relu', padding='same')(conv2d_2)
+conv2d_2 = layers.Conv2D(128, (3, 3), activation='relu', padding='same')(max_pooling2d)
+conv2d_3 = layers.Conv2D(128, (3, 3), activation='relu', padding='same')(conv2d_2)
 max_pooling2d_1 = layers.AveragePooling2D(pool_size=(2, 2))(conv2d_3)
-conv2d_4 = layers.Conv2D(128, (3, 3), activation='relu', padding='same')(max_pooling2d_1)
-conv2d_5 = layers.Conv2D(128, (3, 3), activation='relu', padding='same')(conv2d_4)
+conv2d_4 = layers.Conv2D(256, (3, 3), activation='relu', padding='same')(max_pooling2d_1)
+conv2d_5 = layers.Conv2D(256, (3, 3), activation='relu', padding='same')(conv2d_4)
 max_pooling2d_2 = layers.AveragePooling2D(pool_size=(2, 2))(conv2d_5)
-conv2d_6 = layers.Conv2D(256, (3, 3), activation='relu', padding='same')(max_pooling2d_2)
-conv2d_7 = layers.Conv2D(256, (3, 3), activation='relu', padding='same')(conv2d_6)
-up_sampling2d = layers.Concatenate()([layers.UpSampling2D(size=(2, 2))(conv2d_7),conv2d_5])
-conv2d_8 = layers.Conv2D(128, (3, 3), activation='relu', padding='same')(up_sampling2d)
-conv2d_9 = layers.Conv2D(128, (3, 3), activation='relu', padding='same')(conv2d_8)
-up_sampling2d_1 = layers.Concatenate()([layers.UpSampling2D(size=(2,2))(conv2d_9),conv2d_3])
-conv2d_10 = layers.Conv2D(64, (3, 3), activation='relu', padding='same')(up_sampling2d_1)
-conv2d_11 = layers.Conv2D(64, (3, 3), activation='relu', padding='same')(conv2d_10)
-up_sampling2d_2 = layers.Concatenate()([layers.UpSampling2D(size=(2,2))(conv2d_11),conv2d_1])
-conv2d_12 = layers.Conv2D(32, (3, 3), activation='relu', padding='same')(up_sampling2d_2)
-conv2d_13 = layers.Conv2D(32, (3, 3), activation='relu', padding='same')(conv2d_12)
-outputs = layers.Conv2D(1, (1,1), activation='relu', padding='same')(conv2d_13)
+conv2d_6 = layers.Conv2D(512, (3, 3), activation='relu', padding='same')(max_pooling2d_2)
+conv2d_7 = layers.Conv2D(512, (3, 3), activation='relu', padding='same')(conv2d_6)
+max_pooling2d_3 = layers.AveragePooling2D(pool_size=(2, 2))(conv2d_7)
+conv2d_8 = layers.Conv2D(1024, (3, 3), activation='relu', padding='same')(max_pooling2d_3)
+conv2d_9 = layers.Conv2D(1024, (3, 3), activation='relu', padding='same')(conv2d_8)
+up_sampling2d = layers.Concatenate()([layers.UpSampling2D(size=(2, 2))(conv2d_9),conv2d_7])
+conv2d_10 = layers.Conv2D(512, (3, 3), activation='relu', padding='same')(up_sampling2d)
+conv2d_11 = layers.Conv2D(512, (3, 3), activation='relu', padding='same')(conv2d_10)
+up_sampling2d_1 = layers.Concatenate()([layers.UpSampling2D(size=(2, 2))(conv2d_11),conv2d_5])
+conv2d_12 = layers.Conv2D(256, (3, 3), activation='relu', padding='same')(up_sampling2d_1)
+conv2d_13 = layers.Conv2D(256, (3, 3), activation='relu', padding='same')(conv2d_12)
+up_sampling2d_2 = layers.Concatenate()([layers.UpSampling2D(size=(2,2))(conv2d_13),conv2d_3])
+conv2d_14 = layers.Conv2D(128, (3, 3), activation='relu', padding='same')(up_sampling2d_2)
+conv2d_15 = layers.Conv2D(128, (3, 3), activation='relu', padding='same')(conv2d_14)
+up_sampling2d_3 = layers.Concatenate()([layers.UpSampling2D(size=(2,2))(conv2d_15),conv2d_1])
+conv2d_16 = layers.Conv2D(64, (3, 3), activation='relu', padding='same')(up_sampling2d_3)
+conv2d_17 = layers.Conv2D(64, (3, 3), activation='relu', padding='same')(conv2d_16)
+outputs = layers.Conv2D(1, (1,1), activation='relu', padding='same')(conv2d_17)
 
 model = models.Model(inputs=inputs, outputs=outputs, name="CNN")
 
-model.compile(optimizer='adam',
+model.compile(optimizer=optimizers.Adam(learning_rate=0.0001),
               loss='huber')
 
 # train_dataset = tf.stack([tf.reshape(tf.convert_to_tensor(y),(64,64,2)) for y in [x for x in train_dataset.as_numpy_iterator()]])
@@ -130,7 +136,7 @@ model.compile(optimizer='adam',
 # test_dataset = tf.stack([tf.reshape(tf.convert_to_tensor(y),(64,64,2)) for y in [x for x in test_dataset.as_numpy_iterator()]])
 # test_labels = tf.stack([tf.reshape(tf.convert_to_tensor(y),(64,64)) for y in [x for x in test_labels.as_numpy_iterator()]])
 
-history = model.fit(train_dataset,train_labels,batch_size=64,epochs=75)
+history = model.fit(train_dataset,train_labels,batch_size=32,epochs=200)
 
 original_sequence = test_dataset[0:9]
 enhanced_sequence = enhance(original_sequence,model)
