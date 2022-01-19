@@ -1,6 +1,6 @@
 *
 
-!pyEnv/CNN.py
-!pyEnv/ChaplinCNN.py
+!condaEnv/CNN.py
+!condaEnv/ChaplinCNN.py
 
 !*/
