@@ -3,6 +3,7 @@ import tensorflow as tf
 from tensorflow.keras import layers,models,optimizers
 import skvideo.io as svio
 import numpy as np
+import numpy.lib.format as fmt
 from scenedetect import VideoManager
 from scenedetect import SceneManager
 
@@ -38,8 +39,8 @@ def formatAndSaveNumpyData(numpy_video,scene_list):
         two = next(data, None)
         three = next(data, None)
         while not count >= limit and three is not None: 
-            np.save(labelsFile,two)
-            np.save(samplesFile,np.reshape(np.stack((one,three),axis=-1),(one.shape[0],one.shape[1],one.shape[2]*2)))
+            labelsFile.write(two)
+            samplesFile.write(np.reshape(np.stack((one,three),axis=-1),(one.shape[0],one.shape[1],one.shape[2]*2)))
             one = three
             two = next(data, None)
             three = next(data, None)
@@ -61,32 +62,38 @@ def split_scenes(numpy_video,videoFilePath):
     return scene_list
 
 def generator():
-    samGen = np.load("E:\\Dataset\\samples.npy", mmap_mode="r")
-    labGen = np.load("E:\\Dataset\\labels.npy", mmap_mode="r")
-    yield (tf.convert_to_tensor(samGen),tf.convert_to_tensor(labGen))
+    samGen = np.memmap("E:\\Dataset\\samples.npy", mode="r",shape=(17276,360,504,6))
+    labGen = np.memmap("E:\\Dataset\\labels.npy", mode="r",shape=(17276,360,504,3))
+    for i in range(0,len(samGen)):
+        yield (tf.convert_to_tensor(samGen[i]),tf.convert_to_tensor(labGen[i]))
 
 def buildDataset():
     dataset = tf.data.Dataset.from_generator(generator,output_signature=(tf.TensorSpec(shape=(360, 504, 6), dtype=tf.uint8, name=None),tf.TensorSpec(shape=(360, 504, 3), dtype=tf.uint8, name=None)))
+    dataset = dataset.batch(16)
+    dataset = dataset.map(lambda x,y: (tf.cast(x,tf.float32),tf.cast(y,tf.float32))
+                         ).map(lambda x,y: (x/255.,y/255.))
     return dataset
 
 videoFilePath = "Dataset\\Charlie Chaplin_ Easy Street.mp4"
 numpy_video = loadVideo(videoFilePath)
 scene_list = split_scenes(numpy_video,videoFilePath) #Split video so that 'cuts' don't interfere with formatting dataset
-#formatAndSaveNumpyData(numpy_video, scene_list)
+formatAndSaveNumpyData(numpy_video, scene_list)
 dataset = buildDataset()
-for scene in scene_list:
-    count = scene[0].frame_num   
-    limit = scene[1].frame_num
-    writer = svio.FFmpegWriter("E:\\Scenes\\scene{0}.mp4".format(count))
-    while count != limit:        
-        for frame in numpy_video.nextFrame():
-            writer.writeFrame(frame)
-            count += 1
-            break
-    writer.close()        
+
+# for scene in scene_list:
+#     count = scene[0].frame_num   
+#     limit = scene[1].frame_num
+#     writer = svio.FFmpegWriter("E:\\Scenes\\scene{0}.mp4".format(count))
+#     while count != limit:        
+#         for frame in numpy_video.nextFrame():
+#             writer.writeFrame(frame)
+#             count += 1
+#             break
+#     writer.close()
 
 inputs = layers.Input(shape=(360,504,6))
-conv2d = layers.Conv2D(64, (3,3), activation='relu', padding='same')(inputs)
+padding = layers.ZeroPadding2D(padding=4)(inputs)
+conv2d = layers.Conv2D(64, (3,3), activation='relu', padding='same')(padding)
 conv2d_1 = layers.Conv2D(64, (3,3), activation='relu', padding='same')(conv2d)
 max_pooling2d = layers.AveragePooling2D(pool_size=(2, 2))(conv2d_1)
 conv2d_2 = layers.Conv2D(128, (3, 3), activation='relu', padding='same')(max_pooling2d)
@@ -112,13 +119,14 @@ conv2d_15 = layers.Conv2D(128, (3, 3), activation='relu', padding='same')(conv2d
 up_sampling2d_3 = layers.Concatenate()([layers.UpSampling2D(size=(2,2))(conv2d_15),conv2d_1])
 conv2d_16 = layers.Conv2D(64, (3, 3), activation='relu', padding='same')(up_sampling2d_3)
 conv2d_17 = layers.Conv2D(64, (3, 3), activation='relu', padding='same')(conv2d_16)
-outputs = layers.Conv2D(1, (1,1), activation='relu', padding='same')(conv2d_17)
+conv2d_18 = layers.Conv2D(1, (1,1), activation='relu', padding='same')(conv2d_17)
+outputs = layers.Cropping2D(cropping=4)(conv2d_18)
 
 model = models.Model(inputs=inputs, outputs=outputs, name="CNN")
 
 model.compile(optimizer=optimizers.Adam(learning_rate=0.0001),
               loss='huber')
 
-history = model.fit(dataset,batch_size=64,epochs=100)
+history = model.fit(dataset,epochs=100)
 
 print("pause")

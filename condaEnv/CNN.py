@@ -52,7 +52,7 @@ def formatData(dataset_numpy):
 #     return train_dataset, test_dataset, train_labels, test_labels
 
 def loadNumpyDataset():
-    train_dataset = np.load("C:\\Users\\Harry\\Google Drive\\Computer Science\\COMP6013 - Computing Project\\Project Repository\\pyEnv\\Dataset\\train_dataset.npy")
+    train_dataset = np.load("Dataset\\train_dataset.npy")
     train_labels = np.load("Dataset\\train_labels.npy")
     test_dataset = np.load("Dataset\\test_dataset.npy")
     test_labels = np.load("Dataset\\test_labels.npy")
@@ -63,12 +63,7 @@ def enhance(sequence, model):
     enhanced_sequence = np.insert(sequence,[1],[np.reshape(model.predict(np.reshape(x,(1,64,64,2))),(1,64,64)) for x in sequence],axis=1)
     return enhanced_sequence
 
-train_dataset, test_dataset, train_labels, test_labels = loadNumpyDataset()
-
-print(len(train_dataset))
-print(len(train_labels))
-print(len(test_dataset))
-print(len(test_labels))
+#train_dataset, test_dataset, train_labels, test_labels = loadNumpyDataset()
 
 # model = models.Sequential()
 
