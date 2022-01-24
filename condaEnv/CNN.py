@@ -63,7 +63,7 @@ def enhance(sequence, model):
     enhanced_sequence = np.insert(sequence,[1],[np.reshape(model.predict(np.reshape(x,(1,64,64,2))),(1,64,64)) for x in sequence],axis=1)
     return enhanced_sequence
 
-#train_dataset, test_dataset, train_labels, test_labels = loadNumpyDataset()
+train_dataset, test_dataset, train_labels, test_labels = loadNumpyDataset()
 
 # model = models.Sequential()
 
@@ -131,7 +131,7 @@ model.compile(optimizer=optimizers.Adam(learning_rate=0.0001),
 # test_dataset = tf.stack([tf.reshape(tf.convert_to_tensor(y),(64,64,2)) for y in [x for x in test_dataset.as_numpy_iterator()]])
 # test_labels = tf.stack([tf.reshape(tf.convert_to_tensor(y),(64,64)) for y in [x for x in test_labels.as_numpy_iterator()]])
 
-history = model.fit(train_dataset,train_labels,batch_size=32,epochs=200)
+history = model.fit(train_dataset,train_labels,batch_size=32,epochs=50)
 
 original_sequence = test_dataset[0:9]
 enhanced_sequence = enhance(original_sequence,model)

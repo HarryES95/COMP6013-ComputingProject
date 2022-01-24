@@ -32,6 +32,7 @@ def formatAndSaveNumpyData(numpy_video,scene_list):
     samplesFile = open("E:\\Dataset\\samples.npy","ba+") #Open file in binary append mode
     labelsFile = open("E:\\Dataset\\labels.npy","ba+") #Open file in binary append mode
     data = (x for x in numpy_video.nextFrame()) #Use generator so entire file is not loaded into memory
+    size = 0
     for scene in scene_list:
         count = scene[0].frame_num   
         limit = scene[1].frame_num
@@ -39,8 +40,17 @@ def formatAndSaveNumpyData(numpy_video,scene_list):
         two = next(data, None)
         three = next(data, None)
         while not count >= limit and three is not None: 
-            labelsFile.write(two)
-            samplesFile.write(np.reshape(np.stack((one,three),axis=-1),(one.shape[0],one.shape[1],one.shape[2]*2)))
+            #Split the numpy arrays into sections of 4 so that the model does not take up so much memory
+            label = two
+            sample = np.stack((one,three))
+            label,sample = np.vsplit(label,2),np.vsplit(sample,2)
+            label,sample = [np.hsplit(l,2) for l in label],[np.hsplit(s,2) for s in sample]
+            label,sample = np.reshape(np.stack(label),(4,180,252,3)),np.reshape(np.stack(sample),(4,180,252,6))
+            label,sample = np.moveaxis(label,-1,1),np.moveaxis(sample,-1,1)
+            #Save sections to the disk
+            labelsFile.write(label)
+            samplesFile.write(sample)
+            #Move along the video
             one = three
             two = next(data, None)
             three = next(data, None)
@@ -62,16 +72,16 @@ def split_scenes(numpy_video,videoFilePath):
     return scene_list
 
 def generator():
-    samGen = np.memmap("E:\\Dataset\\samples.npy", mode="r",shape=(17276,360,504,6))
-    labGen = np.memmap("E:\\Dataset\\labels.npy", mode="r",shape=(17276,360,504,3))
+    samGen = np.memmap("E:\\Dataset\\samples.npy", mode="r",shape=(69104,6,180,252))
+    labGen = np.memmap("E:\\Dataset\\labels.npy", mode="r",shape=(69104,3,180,252))
     for i in range(0,len(samGen)):
-        yield (tf.convert_to_tensor(samGen[i]),tf.convert_to_tensor(labGen[i]))
+        yield (samGen[i],labGen[i])
 
 def buildDataset():
-    dataset = tf.data.Dataset.from_generator(generator,output_signature=(tf.TensorSpec(shape=(360, 504, 6), dtype=tf.uint8, name=None),tf.TensorSpec(shape=(360, 504, 3), dtype=tf.uint8, name=None)))
-    dataset = dataset.batch(16)
-    dataset = dataset.map(lambda x,y: (tf.cast(x,tf.float32),tf.cast(y,tf.float32))
+    dataset = tf.data.Dataset.from_generator(generator,output_signature=(tf.TensorSpec(shape=(6, 180, 252), dtype=tf.uint8, name=None),tf.TensorSpec(shape=(3, 180, 252), dtype=tf.uint8, name=None)))
+    dataset = dataset.map(lambda x,y: (x.astype(np.float32),y.astype(np.float32))
                          ).map(lambda x,y: (x/255.,y/255.))
+    dataset = dataset.batch(64)
     return dataset
 
 videoFilePath = "Dataset\\Charlie Chaplin_ Easy Street.mp4"
@@ -91,36 +101,36 @@ dataset = buildDataset()
 #             break
 #     writer.close()
 
-inputs = layers.Input(shape=(360,504,6))
-padding = layers.ZeroPadding2D(padding=4)(inputs)
-conv2d = layers.Conv2D(64, (3,3), activation='relu', padding='same')(padding)
-conv2d_1 = layers.Conv2D(64, (3,3), activation='relu', padding='same')(conv2d)
-max_pooling2d = layers.AveragePooling2D(pool_size=(2, 2))(conv2d_1)
-conv2d_2 = layers.Conv2D(128, (3, 3), activation='relu', padding='same')(max_pooling2d)
-conv2d_3 = layers.Conv2D(128, (3, 3), activation='relu', padding='same')(conv2d_2)
-max_pooling2d_1 = layers.AveragePooling2D(pool_size=(2, 2))(conv2d_3)
-conv2d_4 = layers.Conv2D(256, (3, 3), activation='relu', padding='same')(max_pooling2d_1)
-conv2d_5 = layers.Conv2D(256, (3, 3), activation='relu', padding='same')(conv2d_4)
-max_pooling2d_2 = layers.AveragePooling2D(pool_size=(2, 2))(conv2d_5)
-conv2d_6 = layers.Conv2D(512, (3, 3), activation='relu', padding='same')(max_pooling2d_2)
-conv2d_7 = layers.Conv2D(512, (3, 3), activation='relu', padding='same')(conv2d_6)
-max_pooling2d_3 = layers.AveragePooling2D(pool_size=(2, 2))(conv2d_7)
-conv2d_8 = layers.Conv2D(1024, (3, 3), activation='relu', padding='same')(max_pooling2d_3)
-conv2d_9 = layers.Conv2D(1024, (3, 3), activation='relu', padding='same')(conv2d_8)
-up_sampling2d = layers.Concatenate()([layers.UpSampling2D(size=(2, 2))(conv2d_9),conv2d_7])
-conv2d_10 = layers.Conv2D(512, (3, 3), activation='relu', padding='same')(up_sampling2d)
-conv2d_11 = layers.Conv2D(512, (3, 3), activation='relu', padding='same')(conv2d_10)
-up_sampling2d_1 = layers.Concatenate()([layers.UpSampling2D(size=(2, 2))(conv2d_11),conv2d_5])
-conv2d_12 = layers.Conv2D(256, (3, 3), activation='relu', padding='same')(up_sampling2d_1)
-conv2d_13 = layers.Conv2D(256, (3, 3), activation='relu', padding='same')(conv2d_12)
-up_sampling2d_2 = layers.Concatenate()([layers.UpSampling2D(size=(2,2))(conv2d_13),conv2d_3])
-conv2d_14 = layers.Conv2D(128, (3, 3), activation='relu', padding='same')(up_sampling2d_2)
-conv2d_15 = layers.Conv2D(128, (3, 3), activation='relu', padding='same')(conv2d_14)
-up_sampling2d_3 = layers.Concatenate()([layers.UpSampling2D(size=(2,2))(conv2d_15),conv2d_1])
-conv2d_16 = layers.Conv2D(64, (3, 3), activation='relu', padding='same')(up_sampling2d_3)
-conv2d_17 = layers.Conv2D(64, (3, 3), activation='relu', padding='same')(conv2d_16)
-conv2d_18 = layers.Conv2D(1, (1,1), activation='relu', padding='same')(conv2d_17)
-outputs = layers.Cropping2D(cropping=4)(conv2d_18)
+inputs = layers.Input(shape=(6,180,252))
+padding = layers.ZeroPadding2D(padding=(6,2), data_format="channels_first")(inputs) #Ensure Image is divisible by 16.
+conv2d = layers.Conv2D(64, (3,3), activation='relu', padding='same', data_format="channels_first")(padding)
+conv2d_1 = layers.Conv2D(64, (3,3), activation='relu', padding='same', data_format="channels_first")(conv2d)
+max_pooling2d = layers.AveragePooling2D(pool_size=(2, 2), data_format="channels_first")(conv2d_1)
+conv2d_2 = layers.Conv2D(128, (3, 3), activation='relu', padding='same', data_format="channels_first")(max_pooling2d)
+conv2d_3 = layers.Conv2D(128, (3, 3), activation='relu', padding='same', data_format="channels_first")(conv2d_2)
+max_pooling2d_1 = layers.AveragePooling2D(pool_size=(2, 2), data_format="channels_first")(conv2d_3)
+conv2d_4 = layers.Conv2D(256, (3, 3), activation='relu', padding='same', data_format="channels_first")(max_pooling2d_1)
+conv2d_5 = layers.Conv2D(256, (3, 3), activation='relu', padding='same', data_format="channels_first")(conv2d_4)
+max_pooling2d_2 = layers.AveragePooling2D(pool_size=(2, 2), data_format="channels_first")(conv2d_5)
+conv2d_6 = layers.Conv2D(512, (3, 3), activation='relu', padding='same', data_format="channels_first")(max_pooling2d_2)
+conv2d_7 = layers.Conv2D(512, (3, 3), activation='relu', padding='same', data_format="channels_first")(conv2d_6)
+max_pooling2d_3 = layers.AveragePooling2D(pool_size=(2, 2), data_format="channels_first")(conv2d_7)
+conv2d_8 = layers.Conv2D(1024, (3, 3), activation='relu', padding='same', data_format="channels_first")(max_pooling2d_3)
+conv2d_9 = layers.Conv2D(1024, (3, 3), activation='relu', padding='same', data_format="channels_first")(conv2d_8)
+up_sampling2d = layers.Concatenate(axis=1)([layers.UpSampling2D(size=(2, 2), data_format="channels_first")(conv2d_9),conv2d_7])
+conv2d_10 = layers.Conv2D(512, (3, 3), activation='relu', padding='same', data_format="channels_first")(up_sampling2d)
+conv2d_11 = layers.Conv2D(512, (3, 3), activation='relu', padding='same', data_format="channels_first")(conv2d_10)
+up_sampling2d_1 = layers.Concatenate(axis=1)([layers.UpSampling2D(size=(2, 2), data_format="channels_first")(conv2d_11),conv2d_5])
+conv2d_12 = layers.Conv2D(256, (3, 3), activation='relu', padding='same', data_format="channels_first")(up_sampling2d_1)
+conv2d_13 = layers.Conv2D(256, (3, 3), activation='relu', padding='same', data_format="channels_first")(conv2d_12)
+up_sampling2d_2 = layers.Concatenate(axis=1)([layers.UpSampling2D(size=(2,2), data_format="channels_first")(conv2d_13),conv2d_3])
+conv2d_14 = layers.Conv2D(128, (3, 3), activation='relu', padding='same', data_format="channels_first")(up_sampling2d_2)
+conv2d_15 = layers.Conv2D(128, (3, 3), activation='relu', padding='same', data_format="channels_first")(conv2d_14)
+up_sampling2d_3 = layers.Concatenate(axis=1)([layers.UpSampling2D(size=(2,2), data_format="channels_first")(conv2d_15),conv2d_1])
+conv2d_16 = layers.Conv2D(64, (3, 3), activation='relu', padding='same', data_format="channels_first")(up_sampling2d_3)
+conv2d_17 = layers.Conv2D(64, (3, 3), activation='relu', padding='same', data_format="channels_first")(conv2d_16)
+conv2d_18 = layers.Conv2D(3, (1,1), activation='relu', padding='same', data_format="channels_first")(conv2d_17)
+outputs = layers.Cropping2D(cropping=(6,2), data_format="channels_first")(conv2d_18)
 
 model = models.Model(inputs=inputs, outputs=outputs, name="CNN")
 
