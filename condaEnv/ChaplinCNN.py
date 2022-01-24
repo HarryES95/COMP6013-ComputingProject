@@ -48,8 +48,8 @@ def formatAndSaveNumpyData(numpy_video,scene_list):
             label,sample = np.reshape(np.stack(label),(4,180,252,3)),np.reshape(np.stack(sample),(4,180,252,6))
             label,sample = np.moveaxis(label,-1,1),np.moveaxis(sample,-1,1)
             #Save sections to the disk
-            labelsFile.write(label)
-            samplesFile.write(sample)
+            labelsFile.write(np.ascontiguousarray(label))
+            samplesFile.write(np.ascontiguousarray(sample))
             #Move along the video
             one = three
             two = next(data, None)
@@ -79,7 +79,7 @@ def generator():
 
 def buildDataset():
     dataset = tf.data.Dataset.from_generator(generator,output_signature=(tf.TensorSpec(shape=(6, 180, 252), dtype=tf.uint8, name=None),tf.TensorSpec(shape=(3, 180, 252), dtype=tf.uint8, name=None)))
-    dataset = dataset.map(lambda x,y: (x.astype(np.float32),y.astype(np.float32))
+    dataset = dataset.map(lambda x,y: (tf.cast(x,tf.float32),tf.cast(y,tf.float32))
                          ).map(lambda x,y: (x/255.,y/255.))
     dataset = dataset.batch(64)
     return dataset
